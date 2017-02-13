@@ -20,7 +20,6 @@ import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +43,7 @@ public class GithubRecordCursor
     private Map<String, Object> row;
 
     public GithubRecordCursor(List<GithubColumnHandle> columnHandles, URI sourceUri,
-            String token)
+            String token, GithubClient client)
     {
         this.columnHandles = columnHandles;
 
@@ -54,10 +53,9 @@ public class GithubRecordCursor
             fieldToColumnName[i] = columnHandle.getColumnName();
         }
 
-        // TODO: Step 4 - Retrieve JSON for the given URI and store it in rows.
-        // See GithubClient#getContent and GithubClient#parseJsonBytesToRecordList
-        totalBytes = 0;
-        rows = new ArrayList<Map<String, Object>>().iterator();
+        byte[] bytes = client.getContent(sourceUri, token);
+        totalBytes = bytes.length;
+        rows = GithubClient.parseJsonBytesToRecordList(bytes).iterator();
     }
 
     @Override
@@ -88,8 +86,12 @@ public class GithubRecordCursor
     @Override
     public boolean advanceNextPosition()
     {
-        // TODO: Step 4 - Implement advanceNextPosition
-        return false;
+        if (!rows.hasNext()) {
+            return false;
+        }
+        row = rows.next();
+
+        return true;
     }
 
     private String getFieldValue(int field)
@@ -97,7 +99,7 @@ public class GithubRecordCursor
         checkState(row != null, "Cursor has not been advanced yet");
 
         String columnName = fieldToColumnName[field];
-        return row.get(columnName).toString();
+        return row.get(columnName).toString(); // TODO: does not work with nested json
     }
 
     @Override

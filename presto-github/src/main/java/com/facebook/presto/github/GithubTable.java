@@ -20,18 +20,35 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static java.util.Objects.requireNonNull;
+
 public class GithubTable
 {
-    private String name;
-    private List<GithubColumn> columns;
-    private List<ColumnMetadata> columnsMetadata;
-    private URITemplate sourceTemplate;
-    private String token;
+    private final String name;
+    private final List<GithubColumn> columns;
+    private final List<ColumnMetadata> columnsMetadata;
+    private final URITemplate sourceTemplate;
+    private final String token;
 
     @JsonCreator
-    public GithubTable()
+    public GithubTable(
+            String name,
+            List<GithubColumn> columns,
+            URITemplate sourceTemplate,
+            String token)
     {
+        checkArgument(!isNullOrEmpty(name), "name is null or is empty");
+        this.name = requireNonNull(name, "name is null");
+        this.columns = ImmutableList.copyOf(requireNonNull(columns, "columns is null"));
+        this.sourceTemplate = requireNonNull(sourceTemplate);
+        this.token = requireNonNull(token);
+
         ImmutableList.Builder<ColumnMetadata> columnsMetadata = ImmutableList.builder();
+        for (GithubColumn column : this.columns) {
+            columnsMetadata.add(new ColumnMetadata(column.getName(), column.getType()));
+        }
         this.columnsMetadata = columnsMetadata.build();
     }
 

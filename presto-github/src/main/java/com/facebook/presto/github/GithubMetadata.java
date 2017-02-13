@@ -39,6 +39,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.facebook.presto.github.Types.checkType;
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
 public class GithubMetadata
@@ -77,14 +78,13 @@ public class GithubMetadata
             return null;
         }
 
-        // TODO: Step 3: Return the "stargazers" table from the GithubClient
         GithubTable table = githubClient.getTable(tableName.getSchemaName(), tableName.getTableName());
         if (table == null) {
             return null;
         }
 
-        // TODO: Step 3 - Construct an appropriate GithubTableHandle and return it
-        return null;
+        return new GithubTableHandle(config.getOwner(), connectorId, tableName.getSchemaName(), tableName.getTableName(),
+                config.getUsername(), config.getToken());
     }
 
     @Override
@@ -105,6 +105,7 @@ public class GithubMetadata
     public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table)
     {
         GithubTableHandle githubTableHandle = checkType(table, GithubTableHandle.class, "table");
+        checkArgument(githubTableHandle.getConnectorId().equals(connectorId), "tableHandle is not for this connector");
         SchemaTableName tableName = new SchemaTableName(githubTableHandle.getSchemaName(), githubTableHandle.getTableName());
 
         return getTableMetadata(tableName);
@@ -134,6 +135,7 @@ public class GithubMetadata
     public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         GithubTableHandle githubTableHandle = checkType(tableHandle, GithubTableHandle.class, "tableHandle");
+        checkArgument(githubTableHandle.getConnectorId().equals(connectorId), "tableHandle is not for this connector");
 
         GithubTable table = githubClient.getTable(githubTableHandle.getSchemaName(), githubTableHandle.getTableName());
         if (table == null) {
@@ -153,8 +155,14 @@ public class GithubMetadata
     public Map<SchemaTableName, List<ColumnMetadata>> listTableColumns(ConnectorSession session, SchemaTablePrefix prefix)
     {
         requireNonNull(prefix, "prefix is null");
-        // TODO: Step 3 - Get the correct column list based on the given SchemaTablePrefix.
         ImmutableMap.Builder<SchemaTableName, List<ColumnMetadata>> columns = ImmutableMap.builder();
+        for (SchemaTableName tableName : listTables(session, prefix)) {
+            ConnectorTableMetadata tableMetadata = getTableMetadata(tableName);
+            // table can disappear during listing operation
+            if (tableMetadata != null) {
+                columns.put(tableName, tableMetadata.getColumns());
+            }
+        }
         return columns.build();
     }
 

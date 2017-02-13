@@ -18,18 +18,34 @@ import com.facebook.presto.spi.RecordSet;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 
+import java.net.URI;
 import java.util.List;
+
+import static java.util.Objects.requireNonNull;
 
 public class GithubRecordSet
         implements RecordSet
 {
+    private final List<GithubColumnHandle> columnHandles;
     private final List<Type> columnTypes;
+    private final URI sourceUri;
+    private final String token;
+    private final GithubClient client;
 
-    public GithubRecordSet()
+    public GithubRecordSet(GithubSplit split, List<GithubColumnHandle> columnHandles, GithubClient client)
     {
-        // TODO: Step 4 - Pass in the appropriate column types
+        requireNonNull(split, "split is null");
+        this.client = requireNonNull(client);
+
+        this.columnHandles = requireNonNull(columnHandles, "column handles is null");
         ImmutableList.Builder<Type> types = ImmutableList.builder();
+        for (GithubColumnHandle column : columnHandles) {
+            types.add(column.getColumnType());
+        }
         this.columnTypes = types.build();
+
+        this.sourceUri = split.getUri();
+        this.token = split.getToken();
     }
 
     @Override
@@ -41,7 +57,6 @@ public class GithubRecordSet
     @Override
     public RecordCursor cursor()
     {
-        // TODO: Step 4 - Return a RecordCursor
-        return null;
+        return new GithubRecordCursor(columnHandles, sourceUri, token, client);
     }
 }

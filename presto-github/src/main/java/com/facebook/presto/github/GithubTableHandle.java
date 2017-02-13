@@ -26,16 +26,40 @@ import static java.util.Objects.requireNonNull;
 public final class GithubTableHandle
         implements ConnectorTableHandle
 {
+    private final String connectorId;
+    private final String catalogName;
     private final String schemaName;
     private final String tableName;
+    private final String username;
+    private final String token;
 
     @JsonCreator
     public GithubTableHandle(
+            @JsonProperty("catalogName") String catalogName,
+            @JsonProperty("connectorId") String connectorId,
             @JsonProperty("schemaName") String schemaName,
-            @JsonProperty("tableName") String tableName)
+            @JsonProperty("tableName") String tableName,
+            @JsonProperty("username") String username,
+            @JsonProperty("token") String token)
     {
+        this.catalogName = requireNonNull(catalogName, "catalogName is null");
+        this.connectorId = requireNonNull(connectorId, "connectorId is null");
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
+        this.username = requireNonNull(username, "username is null");
+        this.token = requireNonNull(token, "token is null");
+    }
+
+    @JsonProperty
+    public String getCatalogName()
+    {
+        return catalogName;
+    }
+
+    @JsonProperty
+    public String getConnectorId()
+    {
+        return connectorId;
     }
 
     @JsonProperty
@@ -50,6 +74,18 @@ public final class GithubTableHandle
         return tableName;
     }
 
+    @JsonProperty
+    public String getUsername()
+    {
+        return username;
+    }
+
+    @JsonProperty
+    public String getToken()
+    {
+        return token;
+    }
+
     public SchemaTableName toSchemaTableName()
     {
         return new SchemaTableName(schemaName, tableName);
@@ -58,7 +94,7 @@ public final class GithubTableHandle
     @Override
     public int hashCode()
     {
-        return Objects.hash();
+        return Objects.hash(connectorId, schemaName, tableName);
     }
 
     @Override
@@ -72,13 +108,14 @@ public final class GithubTableHandle
         }
 
         GithubTableHandle other = (GithubTableHandle) obj;
-        return Objects.equals(this.schemaName, other.schemaName) &&
+        return Objects.equals(this.connectorId, other.connectorId) &&
+                Objects.equals(this.schemaName, other.schemaName) &&
                 Objects.equals(this.tableName, other.tableName);
     }
 
     @Override
     public String toString()
     {
-        return Joiner.on(":").join(schemaName, tableName);
+        return Joiner.on(":").join(connectorId, schemaName, tableName);
     }
 }

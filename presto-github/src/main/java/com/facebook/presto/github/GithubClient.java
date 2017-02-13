@@ -14,17 +14,20 @@
 package com.facebook.presto.github;
 
 import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.type.BigintType;
+import com.facebook.presto.spi.type.VarcharType;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.fge.uritemplate.URITemplate;
 import com.github.fge.uritemplate.URITemplateException;
 import com.github.fge.uritemplate.vars.VariableMap;
+import com.github.fge.uritemplate.vars.VariableMapBuilder;
 import com.google.common.base.Splitter;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import io.airlift.json.JsonCodec;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.ContentResponse;
@@ -43,6 +46,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.facebook.presto.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -67,7 +71,13 @@ public class GithubClient
         httpClient.start();
         endpoints = Suppliers.memoize(endpointsSupplier(apiCodec, config));
         schemas = Suppliers.memoize(schemasSupplier(schemaCodec, endpoints, config));
-        tables = ImmutableMap.of();
+        tables = ImmutableMap.of(
+                "stargazers", new GithubTable("stargazers",
+                        ImmutableList.of(
+                                new GithubColumn("login", VarcharType.VARCHAR),
+                                new GithubColumn("id", BigintType.BIGINT)),
+                        new URITemplate("https://{username}:{token}@api.github.com/repos/{owner}/{schema}/stargazers{?page}"),
+                        config.getToken()));
     }
 
     private static String getAuthHeader(String token)
@@ -156,8 +166,8 @@ public class GithubClient
 
     public Set<String> getSchemaNames()
     {
-        // TODO: Step 2 -- Return the repositories for the owner of this catalog
-        return ImmutableSet.of();
+        List<GithubSchema> s = schemas.get();
+        return s.stream().map(x -> x.getName()).collect(Collectors.toSet());
     }
 
     public Set<String> getTableNames(String schema)
@@ -209,9 +219,25 @@ public class GithubClient
             final GithubConfig config)
             throws URITemplateException, URISyntaxException
     {
+        URITemplate repoTemplate;
+        VariableMapBuilder variables = VariableMap.newBuilder()
+                .addScalarValue("username", config.getUsername())
+                .addScalarValue("token", config.getToken());
+
+        if (config.getOwnerType().equals("orgs")) {
+            repoTemplate = endpoints.get().getOrgRepoTemplate();
+            variables.addScalarValue("org", config.getOwner());
+        }
+        else {
+            repoTemplate = endpoints.get().getUserRepoTemplate();
+            variables.addScalarValue("user", config.getOwner());
+        }
+
+        URI schemaUri = repoTemplate.toURI(variables.freeze());
+
         return () -> {
             try {
-                return lookupSchemas(null, config.getToken(), schmemaCodec);
+                return lookupSchemas(schemaUri, config.getToken(), schmemaCodec);
             }
             catch (IOException e) {
                 throw Throwables.propagate(e);
@@ -223,8 +249,7 @@ public class GithubClient
             JsonCodec<List<GithubSchema>> schemaCodec)
             throws IOException
     {
-        // TODO: Step 2 -- Use the GitHub REST API to retrieve the repositories (you may need to change
-        // the above method as well). You can use lookupEndpoints as a reference.
-        return ImmutableList.of();
+        byte[] json = getContent(schemaUri, token);
+        return schemaCodec.fromJson(json);
     }
 }
